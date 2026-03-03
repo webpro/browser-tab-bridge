@@ -1,0 +1,20 @@
+[
+  {
+    "namespace": "zenSpaces",
+    "functions": [
+      {
+        "name": "switchToTabWorkspace",
+        "type": "function",
+        "description": "Switch to the Zen workspace that contains the given tab",
+        "async": true,
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer",
+            "description": "The ID of the tab whose workspace to switch to"
+          }
+        ]
+      }
+    ]
+  }
+]

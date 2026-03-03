@@ -1,0 +1,31 @@
+{
+  "name": "open-in-browser-tab",
+  "version": "0.0.2",
+  "description": "Focus or open a URL in the default browser tab (macOS-only)",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node scripts/build-extensions.mjs && tsc",
+    "install:firefox": "node scripts/install-extension.mjs --browser firefox",
+    "install:zen": "node scripts/install-extension.mjs --browser zen",
+    "prepack": "pnpm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.11.0",
+    "typescript": "^5.9.3"
+  },
+  "keywords": ["open", "browser", "tab"],
+  "author": {
+    "name": "Lars Kappert",
+    "email": "lars@webpro.nl"
+  },
+  "license": "ISC",
+  "packageManager": "pnpm@10.30.3"
+}
