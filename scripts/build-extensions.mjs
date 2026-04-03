@@ -38,8 +38,8 @@ buildExtension(join(ROOT, "extension", "zen"), {
 // Native messaging host
 const hostDir = join(ROOT, "host");
 cleanDir(hostDir);
-const hostScript = join(hostDir, "open-in-browser-tab-host.mjs");
-cpSync(join(SRC_HOST, "open-in-browser-tab-host.mjs"), hostScript);
+const hostScript = join(hostDir, "browser-tab-bridge-host.mjs");
+cpSync(join(SRC_HOST, "browser-tab-bridge-host.mjs"), hostScript);
 chmodSync(hostScript, 0o755);
 
 console.log("Built: extension/firefox, extension/zen, host");

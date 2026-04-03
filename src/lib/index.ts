@@ -1,14 +1,56 @@
-import { request } from "node:http";
 import {
+  BROWSER_BUNDLE_PREFIXES,
   CHROMIUM_BUNDLE_IDS,
+  FIREFOX_BUNDLE_PREFIXES,
   escapeForAppleScript,
+  extensionRequest,
   getDefaultBrowserBundleId,
+  getRunningBrowserBundleIds,
+  runOsascript,
   runOpen,
   runAppleScript,
 } from "./browser-utils.ts";
 
-const EXTENSION_PORT = 9854;
-const EXTENSION_REQUEST_TIMEOUT_MS = 350;
+export type BrowserApp = {
+  name: string;
+  bundleId: string;
+};
+
+export async function getInstalledBrowsers(): Promise<BrowserApp[]> {
+  try {
+    const json = await runOsascript(
+      "JavaScript",
+      `ObjC.import("AppKit");
+      const ws = $.NSWorkspace.sharedWorkspace;
+      const url = $.NSURL.URLWithString("https://example.com");
+      const apps = ws.URLsForApplicationsToOpenURL(url);
+      const out = [];
+      if (apps) {
+        const count = apps.count;
+        for (let i = 0; i < count; i++) {
+          const appUrl = apps.objectAtIndex(i);
+          const bundle = $.NSBundle.bundleWithURL(appUrl);
+          if (!bundle) continue;
+          const bundleId = bundle.bundleIdentifier;
+          const name = bundle.objectForInfoDictionaryKey("CFBundleName");
+          if (!bundleId || !name) continue;
+          out.push({ name: ObjC.unwrap(name), bundleId: ObjC.unwrap(bundleId) });
+        }
+      }
+      JSON.stringify(out);`,
+    );
+
+    const apps = JSON.parse(json) as BrowserApp[];
+    const filtered = apps.filter((app) => BROWSER_BUNDLE_PREFIXES.some((prefix) => app.bundleId.startsWith(prefix)));
+    const byBundleId = new Map<string, BrowserApp>();
+    for (const app of filtered) {
+      byBundleId.set(app.bundleId, app);
+    }
+    return [...byBundleId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Focus an existing browser tab whose URL starts with the given URL,
@@ -89,10 +131,6 @@ function openInSafari(url: string) {
     end tell`);
 }
 
-/**
- * Try the companion WebExtension (HTTP → native messaging host → extension).
- * Falls back to activate + open location if the extension isn't installed.
- */
 async function openInFirefoxBased(
   browserBundleId: string,
   url: string,
@@ -103,34 +141,7 @@ async function openInFirefoxBased(
     ).catch(() => {});
 
   try {
-    const result = await new Promise<{ status: string }>((resolve, reject) => {
-      const req = request(
-        {
-          hostname: "127.0.0.1",
-          port: EXTENSION_PORT,
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          timeout: EXTENSION_REQUEST_TIMEOUT_MS,
-        },
-        (res) => {
-          let data = "";
-          res.on("data", (c) => (data += c));
-          res.on("end", () => {
-            try {
-              resolve(JSON.parse(data));
-            } catch {
-              reject(new Error("invalid json"));
-            }
-          });
-        },
-      );
-      req.on("error", reject);
-      req.on("timeout", () => {
-        req.destroy();
-        reject(new Error("timeout"));
-      });
-      req.end(JSON.stringify({ url }));
-    });
+    const result = await extensionRequest<{ status: string }>({ action: "openTab", url }, 350);
     if (result.status === "found" || result.status === "new") {
       await activate();
       return result.status === "found";
@@ -141,4 +152,54 @@ async function openInFirefoxBased(
 
   await runOpen(url, browserBundleId);
   return false;
+}
+
+/**
+ * Get the URL of the active browser tab.
+ * Tries the default browser first, then any running browser.
+ */
+export async function getActiveTabUrl(): Promise<string | null> {
+  const tried = new Set<string>();
+
+  const tryBrowser = async (bundleId: string): Promise<string | null> => {
+    if (!bundleId || tried.has(bundleId)) return null;
+    tried.add(bundleId);
+
+    const escaped = escapeForAppleScript(bundleId);
+
+    if (bundleId.startsWith("com.apple.Safari")) {
+      try {
+        return await runAppleScript('tell application "Safari" to get URL of front document');
+      } catch {}
+    }
+
+    if (CHROMIUM_BUNDLE_IDS.includes(bundleId)) {
+      try {
+        return await runAppleScript(`tell application id "${escaped}" to get URL of active tab of front window`);
+      } catch {}
+    }
+
+    if (FIREFOX_BUNDLE_PREFIXES.some((p) => bundleId.startsWith(p))) {
+      try {
+        const result = await extensionRequest<{ status: string; url?: string }>({ action: "getActiveTab" });
+        if (result.status === "found" && result.url) return result.url;
+      } catch {}
+    }
+
+    return null;
+  };
+
+  try {
+    const defaultId = await getDefaultBrowserBundleId();
+    const url = await tryBrowser(defaultId);
+    if (url) return url;
+  } catch {}
+
+  const running = await getRunningBrowserBundleIds();
+  for (const id of running) {
+    const url = await tryBrowser(id);
+    if (url) return url;
+  }
+
+  return null;
 }

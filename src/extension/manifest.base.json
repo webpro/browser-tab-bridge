@@ -2,14 +2,14 @@
   "manifest_version": 2,
   "name": "Open in Browser Tab",
   "version": "1.0.0",
-  "description": "Companion extension for open-in-browser-tab to focus existing tabs by URL",
+  "description": "Companion extension for browser-tab-bridge to focus existing tabs by URL",
   "permissions": ["tabs", "nativeMessaging"],
   "background": {
     "scripts": ["background.js"]
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "open-in-browser-tab@webpro"
+      "id": "browser-tab-bridge@webpro"
     }
   }
 }

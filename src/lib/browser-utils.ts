@@ -80,3 +80,53 @@ export const CHROMIUM_BUNDLE_IDS = [
   "com.operasoftware.Opera",
   "org.chromium.Chromium",
 ];
+
+export const FIREFOX_BUNDLE_PREFIXES = ["org.mozilla.firefox", "app.zen-browser."];
+
+export const BROWSER_BUNDLE_PREFIXES = [
+  "com.apple.Safari",
+  "com.google.Chrome",
+  "com.brave.",
+  "com.microsoft.edge",
+  "com.vivaldi.",
+  "company.thebrowser.",
+  "com.operasoftware.",
+  "org.chromium.",
+  "org.mozilla.firefox",
+  "org.mozilla.pale moon",
+  "app.zen-browser.",
+  "com.duckduckgo.",
+];
+
+export function getRunningBrowserBundleIds(): Promise<string[]> {
+  return runOsascript(
+    "JavaScript",
+    `ObjC.import("AppKit");
+    const ws = $.NSWorkspace.sharedWorkspace;
+    const apps = ws.runningApplications;
+    const out = [];
+    for (let i = 0; i < apps.count; i++) {
+      const app = apps.objectAtIndex(i);
+      const bid = ObjC.unwrap(app.bundleIdentifier);
+      if (bid) out.push(bid);
+    }
+    JSON.stringify(out);`,
+  )
+    .then((json) => {
+      const allIds = JSON.parse(json) as string[];
+      return allIds.filter((id) => BROWSER_BUNDLE_PREFIXES.some((p) => id.startsWith(p)));
+    })
+    .catch(() => []);
+}
+
+export const EXTENSION_PORT = 9854;
+
+export async function extensionRequest<T>(body: Record<string, unknown>, timeoutMs = 500): Promise<T> {
+  const response = await fetch(`http://127.0.0.1:${EXTENSION_PORT}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  return response.json() as Promise<T>;
+}

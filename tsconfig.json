@@ -1,15 +1,15 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
-    "moduleResolution": "node",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true,
     "declaration": true,
     "outDir": "dist",
     "rootDir": "src/lib",
+    "types": ["node"],
     "strict": true,
-    "esModuleInterop": true,
     "skipLibCheck": true
   },
   "include": ["src/lib"]

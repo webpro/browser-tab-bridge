@@ -1,6 +1,10 @@
-#!/Users/lars/.n/bin/node
+#!/usr/bin/env node
 
+import { appendFileSync } from "node:fs";
 import http from "node:http";
+
+const LOG = "/tmp/browser-tab-bridge.log";
+const log = (msg) => appendFileSync(LOG, `${new Date().toISOString()} ${msg}\n`);
 
 function sendToExtension(msg) {
   const json = JSON.stringify(msg);
@@ -41,7 +45,12 @@ const server = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     try {
-      const { url } = JSON.parse(body);
+      const { action, url } = JSON.parse(body);
+      if (!action) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ status: "error", message: "action is required" }));
+        return;
+      }
       const id = nextId++;
 
       const timeout = setTimeout(() => {
@@ -58,7 +67,7 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify(result));
       });
 
-      sendToExtension({ id, url });
+      sendToExtension({ id, action, url });
     } catch {
       res.writeHead(400);
       res.end(JSON.stringify({ status: "error", message: "invalid request" }));
@@ -81,4 +90,8 @@ server.on("error", (err) => {
   }
 });
 
-server.listen(9854, "127.0.0.1");
+log("starting");
+
+process.on("uncaughtException", (err) => log(`uncaught: ${err.stack}`));
+
+server.listen(9854, "127.0.0.1", () => log("listening on 9854"));

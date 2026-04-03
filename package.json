@@ -1,7 +1,13 @@
 {
-  "name": "open-in-browser-tab",
-  "version": "0.0.2",
-  "description": "Focus or open a URL in the default browser tab (macOS-only)",
+  "name": "browser-tab-bridge",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Read and control browser tabs from outside the browser (macOS)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webpro/browser-tab-bridge.git"
+  },
+  "homepage": "https://github.com/webpro/browser-tab-bridge",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -9,7 +15,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "extension",
+    "host",
+    "scripts"
   ],
   "scripts": {
     "build": "node scripts/build-extensions.mjs && tsc",
@@ -18,14 +27,24 @@
     "prepack": "pnpm run build"
   },
   "devDependencies": {
-    "@types/node": "^24.11.0",
-    "typescript": "^5.9.3"
+    "@types/node": "^24.12.0",
+    "typescript": "^6.0.2"
   },
-  "keywords": ["open", "browser", "tab"],
+  "os": [
+    "darwin"
+  ],
+  "keywords": [
+    "open",
+    "browser",
+    "tab",
+    "macos",
+    "applescript",
+    "native-messaging"
+  ],
   "author": {
     "name": "Lars Kappert",
     "email": "lars@webpro.nl"
   },
   "license": "ISC",
-  "packageManager": "pnpm@10.30.3"
+  "packageManager": "pnpm@10.33.0"
 }

@@ -4,19 +4,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-const EXTENSION_ID = "open-in-browser-tab@webpro";
-const HOST_NAME = "open_in_browser_tab";
+const EXTENSION_ID = "browser-tab-bridge@webpro";
+const HOST_NAME = "browser_tab_bridge";
 
-function defaultsFor(browser) {
-  const home = homedir();
-  if (browser === "zen") {
-    return {
-      hostsDir: join(home, "Library", "Application Support", "zen", "NativeMessagingHosts"),
-    };
-  }
-
+function defaultsFor() {
   return {
-    hostsDir: join(home, "Library", "Application Support", "Mozilla", "NativeMessagingHosts"),
+    hostsDir: join(homedir(), "Library", "Application Support", "Mozilla", "NativeMessagingHosts"),
   };
 }
 
@@ -51,7 +44,7 @@ function main() {
   const defaults = defaultsFor(parsed.browser);
 
   const nativeHostsDir = parsed.hosts ?? defaults.hostsDir;
-  const hostScript = join(rootDir, "host", "open-in-browser-tab-host.mjs");
+  const hostScript = join(rootDir, "host", "browser-tab-bridge-host.mjs");
   chmodSync(hostScript, 0o755);
 
   mkdirSync(nativeHostsDir, { recursive: true });
@@ -60,7 +53,7 @@ function main() {
     JSON.stringify(
       {
         name: HOST_NAME,
-        description: "Native messaging host for open-in-browser-tab",
+        description: "Native messaging host for browser-tab-bridge",
         path: hostScript,
         type: "stdio",
         allowed_extensions: [EXTENSION_ID],
