@@ -53,58 +53,98 @@ export async function getInstalledBrowsers(): Promise<BrowserApp[]> {
 }
 
 /**
- * Focus an existing browser tab whose URL starts with the given URL,
- * or open a new tab. Automatically detects the default browser.
+ * Focus an existing browser tab matching the given URL (ignoring scheme,
+ * a leading `www.`, and trailing slash), or open a new tab.
  *
- * - Chromium-based & Safari: full tab search via AppleScript
+ * @param url - URL to focus or open.
+ * @param browserBundleId - Target browser bundle id (e.g. `com.google.Chrome`).
+ *   Default: the system default browser
+ *
+ * - Chromium-based & Safari: tab search via AppleScript
  * - Firefox-based (Zen, Firefox, etc.): uses a companion WebExtension
  *   via native messaging for tab search, falls back to `open location`
  */
 export async function openInBrowserTab(
   url: string,
+  browserBundleId?: string,
 ): Promise<boolean | undefined> {
   const escaped = escapeForAppleScript(url);
 
-  let browserBundleId: string;
-  try {
-    browserBundleId = await getDefaultBrowserBundleId();
-  } catch {
-    await runOpen(url);
-    return undefined;
+  let bundleId = browserBundleId;
+  if (!bundleId) {
+    try {
+      bundleId = await getDefaultBrowserBundleId();
+    } catch {
+      await runOpen(url);
+      return undefined;
+    }
   }
 
-  if (CHROMIUM_BUNDLE_IDS.includes(browserBundleId)) {
-    return (await openInChromium(browserBundleId, escaped)) === "found";
+  if (CHROMIUM_BUNDLE_IDS.includes(bundleId)) {
+    return (await openInChromium(bundleId, url)) === "found";
   }
 
-  if (browserBundleId === "com.apple.Safari") {
+  if (bundleId === "com.apple.Safari") {
     return (await openInSafari(escaped)) === "found";
   }
 
-  return openInFirefoxBased(browserBundleId, url);
+  return openInFirefoxBased(bundleId, url);
 }
 
-function openInChromium(browserBundleId: string, url: string) {
-  return runAppleScript(`
-    tell application id "${escapeForAppleScript(browserBundleId)}"
-      activate
-      set targetUrl to "${url}"
-      repeat with win in windows
-        set tabIndex to 0
-        repeat with t in tabs of win
-          set tabIndex to tabIndex + 1
-          if URL of t starts with targetUrl then
-            set active tab index of win to tabIndex
-            return "found"
-          end if
+/**
+ * Normalize an http(s) URL for tab matching: ignore scheme, a leading `www.`,
+ * and a trailing slash, so a bookmark `https://nu.nl` matches an open
+ * `https://www.nu.nl/` tab. Returns null for non-http(s) URLs.
+ */
+function normalize(raw: string): string | null {
+  if (!URL.canParse(raw)) return null;
+  const u = new URL(raw);
+  if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+  return u.host.replace(/^www\./, "") + u.pathname.replace(/\/$/, "") + u.search;
+}
+
+async function openInChromium(browserBundleId: string, url: string): Promise<"found" | "new"> {
+  const appId = escapeForAppleScript(browserBundleId);
+  const target = normalize(url);
+
+  if (target !== null) {
+    const list = await runAppleScript(`
+      set fs to (character id 9)
+      set rs to (character id 10)
+      set out to ""
+      tell application id "${appId}"
+        repeat with wi from 1 to (count of windows)
+          set ts to tabs of window wi
+          repeat with ti from 1 to (count of ts)
+            set out to out & (wi as text) & fs & (ti as text) & fs & (URL of item ti of ts as text) & rs
+          end repeat
         end repeat
-      end repeat
+      end tell
+      return out`);
+
+    for (const line of list.split("\n")) {
+      const [wi, ti, ...rest] = line.split("\t");
+      if (!/^\d+$/.test(wi) || !/^\d+$/.test(ti)) continue;
+      if (normalize(rest.join("\t")) !== target) continue;
+      await runAppleScript(`
+        tell application id "${appId}"
+          set active tab index of window ${wi} to ${ti}
+          set index of window ${wi} to 1
+          activate
+        end tell`);
+      return "found";
+    }
+  }
+
+  await runAppleScript(`
+    tell application id "${appId}"
+      activate
       if not (exists window 1) then
         make new window
       end if
-      tell window 1 to make new tab with properties {URL:targetUrl}
-      return "new"
+      tell window 1 to make new tab with properties {URL:"${escapeForAppleScript(url)}"}
     end tell`);
+  return "new";
 }
 
 function openInSafari(url: string) {
