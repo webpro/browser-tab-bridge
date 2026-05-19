@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,10 +7,13 @@ import { parseArgs } from "node:util";
 const EXTENSION_ID = "browser-tab-bridge@webpro";
 const HOST_NAME = "browser_tab_bridge";
 
-function defaultsFor() {
-  return {
-    hostsDir: join(homedir(), "Library", "Application Support", "Mozilla", "NativeMessagingHosts"),
-  };
+function hostsDirsFor(browser) {
+  const appSupport = join(homedir(), "Library", "Application Support");
+  const mozilla = join(appSupport, "Mozilla", "NativeMessagingHosts");
+  if (browser === "zen") {
+    return [mozilla, join(appSupport, "zen", "NativeMessagingHosts")];
+  }
+  return [mozilla];
 }
 
 function main() {
@@ -41,15 +44,12 @@ function main() {
   }
 
   const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..");
-  const defaults = defaultsFor(parsed.browser);
-
-  const nativeHostsDir = parsed.hosts ?? defaults.hostsDir;
   const hostScript = join(rootDir, "host", "browser-tab-bridge-host.mjs");
+  const body = readFileSync(hostScript, "utf8").replace(/^#![^\n]*\n/, "");
+  writeFileSync(hostScript, `#!${process.execPath}\n${body}`);
   chmodSync(hostScript, 0o755);
 
-  mkdirSync(nativeHostsDir, { recursive: true });
-  writeFileSync(
-    join(nativeHostsDir, `${HOST_NAME}.json`),
+  const manifest =
     JSON.stringify(
       {
         name: HOST_NAME,
@@ -60,12 +60,18 @@ function main() {
       },
       null,
       2,
-    ),
-  );
+    ) + "\n";
 
-  console.log(`Native host installed for ${parsed.browser}`);
-  console.log(`Native host manifest: ${join(nativeHostsDir, `${HOST_NAME}.json`)}`);
-  console.log("Install the extension from file in browser UI (about:addons).");
+  const hostsDirs = parsed.hosts ? [parsed.hosts] : hostsDirsFor(parsed.browser);
+  for (const dir of hostsDirs) {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, `${HOST_NAME}.json`), manifest);
+    console.log(`Native host manifest: ${join(dir, `${HOST_NAME}.json`)}`);
+  }
+
+  console.log(`Native host installed for ${parsed.browser} (host: ${hostScript})`);
+  console.log("Install the extension from file in browser UI (about:addons),");
+  console.log("then fully restart the browser so it relaunches the native host.");
 }
 
 main();
