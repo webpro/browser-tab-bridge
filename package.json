@@ -1,6 +1,6 @@
 {
   "name": "browser-tab-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Read and control browser tabs from outside the browser (macOS)",
   "repository": {
